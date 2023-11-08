@@ -40,10 +40,21 @@
 #include "esp_mac.h"
 
 //#include "drv_system_if.h"
-#include "drv_eth_if.h"
-#include "drv_wifi_if.h"
-#include "drv_version_if.h"
-#include "drv_dns_if.h"
+#if CONFIG_DRV_ETH_USE
+#include "drv_eth.h"
+#endif
+
+#if CONFIG_DRV_WIFI_USE
+#include "drv_wifi.h"
+#endif
+
+#if CONFIG_DRV_VERSION_USE
+#include "drv_version.h"
+#endif
+
+#if CONFIG_DRV_DNS_USE
+#include "drv_dns.h"
+#endif
 //#include "drv_console_if.h"
 
 /* *****************************************************************************
@@ -286,7 +297,7 @@ void socket_if_get_mac(drv_socket_t* pSocket, uint8_t mac_addr[6])
     }
     else if (pSocket->pRuntime->adapter_if >= ESP_IF_ETH)
     {
-        #if CONFIG_USE_ETHERNET
+        #if CONFIG_DRV_ETH_USE
         int eth_index = pSocket->pRuntime->adapter_if - ESP_IF_ETH;
         if (drv_eth_get_netif_count() > eth_index)
         {
@@ -404,16 +415,11 @@ void socket_recv(drv_socket_t* pSocket, int nConnectionIndex)
 
     if (pSocket->bPreventOverflowReceivedData)
     {
-
-        #if CONFIG_SYSTEM_USE_STREAM_BUFFER
         //nLengthPushSize = xStreamBufferBytesAvailable(*pSocket->pRecvStreamBuffer[nConnectionIndex]);
         //nLengthPushFree = xStreamBufferSpacesAvailable(*pSocket->pRecvStreamBuffer[nConnectionIndex]);
-        nLengthPushSize = drv_stream_buffer_get_size(pSocket->pRecvStreamBuffer[nConnectionIndex]);
-        nLengthPushFree = drv_stream_buffer_get_free(pSocket->pRecvStreamBuffer[nConnectionIndex]);
-        #else
-        nLengthPushSize = drv_stream_get_size(pSocket->pRecvStream[nConnectionIndex]);
-        nLengthPushFree = drv_stream_get_free(pSocket->pRecvStream[nConnectionIndex]);
-        #endif
+        nLengthPushSize = drv_stream_get_size(pSocket->pRecvStreamBuffer[nConnectionIndex]);
+        nLengthPushFree = drv_stream_get_free(pSocket->pRecvStreamBuffer[nConnectionIndex]);
+
         if (nLengthPushSize)
         {
             ESP_LOGW(TAG, "%s socket %s[%d] %d read buffer free %d bytes", sockTypeString, pSocket->cName, nConnectionIndex, nSocketClient, nLengthPushFree);
@@ -570,15 +576,10 @@ void socket_recv(drv_socket_t* pSocket, int nConnectionIndex)
                         int nLengthPush;
                         int nFillStreamTCP;
 
-                        #if CONFIG_SYSTEM_USE_STREAM_BUFFER
-                        nLengthPush = drv_stream_buffer_push(pSocket->pRecvStreamBuffer[nConnectionIndex], au8Temp, nLength);
-                        nFillStreamTCP = drv_stream_buffer_get_size(pSocket->pRecvStreamBuffer[nConnectionIndex]);
+                        nLengthPush = drv_stream_push(pSocket->pRecvStreamBuffer[nConnectionIndex], au8Temp, nLength);
+                        nFillStreamTCP = drv_stream_get_size(pSocket->pRecvStreamBuffer[nConnectionIndex]);
                         //nLengthPush = xStreamBufferSend(*pSocket->pRecvStreamBuffer[nConnectionIndex], au8Temp, nLength, pdMS_TO_TICKS(0));
                         //nFillStreamTCP = xStreamBufferBytesAvailable(*pSocket->pRecvStreamBuffer[nConnectionIndex]);
-                        #else
-                        nLengthPush = drv_stream_push(pSocket->pRecvStream[nConnectionIndex], au8Temp, nLength);
-                        nFillStreamTCP = drv_stream_get_size(pSocket->pRecvStream[nConnectionIndex]);
-                        #endif
 
                         if(nLengthPush != nLength)
                         {
@@ -664,7 +665,7 @@ void socket_send(drv_socket_t* pSocket, int nConnectionIndex)
 
     if (pSocket->bSendEnable)
     {
-        nLength = drv_stream_buffer_get_size(pSocket->pSendStreamBuffer[nConnectionIndex]);
+        nLength = drv_stream_get_size(pSocket->pSendStreamBuffer[nConnectionIndex]);
         if (nLengthMax > nLength)
         {
             nLengthMax = nLength;
@@ -677,20 +678,12 @@ void socket_send(drv_socket_t* pSocket, int nConnectionIndex)
             if (au8Temp)
             {
                 
-                #if CONFIG_SYSTEM_USE_STREAM_BUFFER
                 if (pSocket->pSendStreamBuffer[nConnectionIndex] != NULL)
                 {
                     //nLength = xStreamBufferReceive(*pSocket->pSendStreamBuffer[nConnectionIndex], au8Temp, nLengthMax, pdMS_TO_TICKS(0));
-                    nLength = drv_stream_buffer_pull(pSocket->pSendStreamBuffer[nConnectionIndex], au8Temp, nLengthMax);
+                    nLength = drv_stream_pull(pSocket->pSendStreamBuffer[nConnectionIndex], au8Temp, nLengthMax);
                     //ESP_LOGE(TAG, "Send to %s socket %s[%d] %d: send %d/%d", sockTypeString, pSocket->cName, nConnectionIndex, nSocketClient, nLength, nLengthMax);
                 }
-                #else
-                if (nLength <= 0)
-                {
-                    nLength = drv_stream_pull(pSocket->pSendStream[nConnectionIndex], au8Temp, nLengthMax);
-                }
-                #endif
-
 
                 // if (pSocket->pSendStreamBuffer[nConnectionIndex] != NULL)
                 // {
@@ -838,7 +831,7 @@ void socket_get_adapter_interface_ip(drv_socket_t* pSocket)
 
     if(pSocket->pRuntime->adapter_if == ESP_IF_WIFI_STA)
     {
-        #if CONFIG_USE_WIFI
+        #if CONFIG_DRV_WIFI_USE
         esp_netif_t* esp_netif = drv_wifi_get_netif_sta();
         if (esp_netif != NULL)
         {
@@ -852,7 +845,7 @@ void socket_get_adapter_interface_ip(drv_socket_t* pSocket)
     else 
     if(pSocket->pRuntime->adapter_if == ESP_IF_WIFI_AP)
     {
-        #if CONFIG_USE_WIFI
+        #if CONFIG_DRV_WIFI_USE
         esp_netif_t* esp_netif = drv_wifi_get_netif_ap();
         if (esp_netif != NULL)
         {
@@ -865,7 +858,7 @@ void socket_get_adapter_interface_ip(drv_socket_t* pSocket)
     }
     else //if(pSocket->adapter_if >= ESP_IF_ETH)
     {
-        #if CONFIG_USE_ETHERNET
+        #if CONFIG_DRV_ETH_USE
         int eth_index = pSocket->pRuntime->adapter_if - ESP_IF_ETH;
         if (drv_eth_get_netif_count() > eth_index)
         {
@@ -951,6 +944,7 @@ uint32_t drv_socket_caller_id;
 char* socket_get_host_ip_address(drv_socket_t* pSocket)
 {
     char* pLastUsedHostIP = NULL;
+    #if CONFIG_DRV_DNS_USE
     bool bURLResolved;
 
     /* Try Resolve URL */
@@ -977,6 +971,7 @@ char* socket_get_host_ip_address(drv_socket_t* pSocket)
         pLastUsedHostIP = pSocket->cHostIPResolved;
     } 
     else
+    #endif
     {
         pLastUsedHostIP = pSocket->cHostIP;
     }
@@ -1427,18 +1422,10 @@ void socket_on_connect(drv_socket_t* pSocket, int nConnectionIndex)
 
     if (pSocket->bResetSendStreamOnConnect)
     {
-        #if CONFIG_SYSTEM_USE_STREAM_BUFFER
-        drv_stream_buffer_zero(pSocket->pSendStreamBuffer[nConnectionIndex]);
-        #else
-        drv_stream_init(pSocket->pSendStream[nConnectionIndex], NULL, 0);
-        #endif
+        drv_stream_zero(pSocket->pSendStreamBuffer[nConnectionIndex]);
     }
 
-    #if CONFIG_SYSTEM_USE_STREAM_BUFFER
-    drv_stream_buffer_zero(pSocket->pRecvStreamBuffer[nConnectionIndex]);
-    #else
-    drv_stream_init(pSocket->pRecvStream[nConnectionIndex], NULL, 0);
-    #endif
+    //drv_stream_zero(pSocket->pRecvStreamBuffer[nConnectionIndex]);
     
 
     if (pSocket->onConnect != NULL)
@@ -1502,7 +1489,7 @@ void socket_runtime_init(drv_socket_t* pSocket)
     bzero((void*)&pSocket->pRuntime->host_addr_send, sizeof(pSocket->pRuntime->host_addr_send));
     bzero((void*)&pSocket->pRuntime->adapterif_addr, sizeof(pSocket->pRuntime->adapterif_addr));
 
-    #if CONFIG_USE_ETHERNET
+    #if CONFIG_DRV_ETH_USE
     pSocket->pRuntime->adapter_if = ESP_IF_ETH + drv_eth_get_netif_count(); //set as not selected if
     #else
     pSocket->pRuntime->adapter_if = ESP_IF_ETH; //set as not selected if
@@ -1534,7 +1521,7 @@ bool socket_check_interface_connected(esp_interface_t interface)
 {
     if(interface == ESP_IF_WIFI_STA)
     {
-        #if CONFIG_USE_WIFI
+        #if CONFIG_DRV_WIFI_USE
         return drv_wifi_get_sta_connected();
         #else
         return false;
@@ -1542,7 +1529,7 @@ bool socket_check_interface_connected(esp_interface_t interface)
     }
     else if(interface == ESP_IF_WIFI_AP)
     {
-        #if CONFIG_USE_WIFI
+        #if CONFIG_DRV_WIFI_USE
         return drv_wifi_get_ap_connected();
         #else
         return false;
@@ -1550,7 +1537,7 @@ bool socket_check_interface_connected(esp_interface_t interface)
     }
     else //if(interface >= ESP_IF_ETH)
     {
-        #if CONFIG_USE_ETHERNET
+        #if CONFIG_DRV_ETH_USE
         int eth_index = interface - ESP_IF_ETH;
         return drv_eth_get_connected(eth_index);
         #else
@@ -1561,7 +1548,7 @@ bool socket_check_interface_connected(esp_interface_t interface)
 
 void socket_select_adapter_if(drv_socket_t* pSocket)
 {
-    #if CONFIG_USE_ETHERNET
+    #if CONFIG_DRV_ETH_USE
     if (pSocket->pRuntime->adapter_if >= (ESP_IF_ETH + drv_eth_get_netif_count()))  //not selected valid if
     #else
     if (pSocket->pRuntime->adapter_if >= ESP_IF_ETH)  //not selected valid if

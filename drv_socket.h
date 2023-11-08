@@ -28,11 +28,8 @@ extern "C"
 #include "esp_err.h"
 #include "esp_interface.h"
 
-#if CONFIG_SYSTEM_USE_STREAM_BUFFER
-#include "drv_stream_buffer_if.h"
-#else
-#include "drv_stream_if.h"
-#endif
+
+#include "drv_stream.h"
 
 #include "lwip/sockets.h"
 
@@ -231,13 +228,8 @@ typedef struct
     drv_socket_on_sendto_t onSendTo;
     drv_socket_runtime_t* pRuntime;
     struct sockaddr_storage nSocketIndexPrimerIP[DRV_SOCKET_MAX_CLIENTS];
-    #if CONFIG_SYSTEM_USE_STREAM_BUFFER
     StreamBufferHandle_t * pSendStreamBuffer[DRV_SOCKET_MAX_CLIENTS];
     StreamBufferHandle_t * pRecvStreamBuffer[DRV_SOCKET_MAX_CLIENTS];
-    #else
-    drv_stream_t * pSendStream[DRV_SOCKET_MAX_CLIENTS];
-    drv_stream_t * pRecvStream[DRV_SOCKET_MAX_CLIENTS];
-    #endif
 
     //size_t nSetupSocketTxBufferSize;  //not implemented in esp-idf
 
