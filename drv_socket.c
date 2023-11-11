@@ -67,7 +67,7 @@
 #define DEF_KEEPALIVE_INTERVAL          CONFIG_SOCKET_DEFAULT_KEEPALIVE_INTERVAL
 #define DEF_KEEPALIVE_COUNT             CONFIG_SOCKET_DEFAULT_KEEPALIVE_COUNT
 
-#define DRV_SOCKET_TASK_REST_TIME_MS    5
+#define DRV_SOCKET_TASK_REST_TIME_MS    10
 #define DRV_SOCKET_PING_SEND_TIME_MS    10000
 #define DRV_SOCKET_RECONNECT_TIME_MS    5000
 
@@ -1546,8 +1546,10 @@ bool socket_check_interface_connected(esp_interface_t interface)
     }
 }
 
-void socket_select_adapter_if(drv_socket_t* pSocket)
+bool socket_select_adapter_if(drv_socket_t* pSocket)
 {
+    bool bSelectedValidInterface = false;
+
     #if CONFIG_DRV_ETH_USE
     if (pSocket->pRuntime->adapter_if >= (ESP_IF_ETH + drv_eth_get_netif_count()))  //not selected valid if
     #else
@@ -1562,6 +1564,7 @@ void socket_select_adapter_if(drv_socket_t* pSocket)
     {
         if (socket_check_interface_connected(pSocket->adapter_interface[DRV_SOCKET_ADAPTER_INTERFACE_DEFAULT]))
         {
+            bSelectedValidInterface = true;
             if (pSocket->bPriorityBackupAdapterInterface == DRV_SOCKET_PRIORITY_INTERFACE_BACKUP)
             {
                 if (socket_check_interface_connected(pSocket->adapter_interface[DRV_SOCKET_ADAPTER_INTERFACE_BACKUP]))
@@ -1578,6 +1581,7 @@ void socket_select_adapter_if(drv_socket_t* pSocket)
             {
                 ESP_LOGW(TAG, "Socket %s switch to INTERFACE DEFAULT -> BACKUP", pSocket->cName);
                 pSocket->pRuntime->adapter_if = pSocket->adapter_interface[DRV_SOCKET_ADAPTER_INTERFACE_BACKUP];
+                bSelectedValidInterface = true;
                 //pSocket->bDisconnectRequest = true;
             } 
         }
@@ -1586,6 +1590,7 @@ void socket_select_adapter_if(drv_socket_t* pSocket)
     {
         if (socket_check_interface_connected(pSocket->adapter_interface[DRV_SOCKET_ADAPTER_INTERFACE_BACKUP]))
         {
+            bSelectedValidInterface = true;
             if (pSocket->bPriorityBackupAdapterInterface == DRV_SOCKET_PRIORITY_INTERFACE_DEFAULT)
             {
                 if (socket_check_interface_connected(pSocket->adapter_interface[DRV_SOCKET_ADAPTER_INTERFACE_DEFAULT]))
@@ -1602,11 +1607,17 @@ void socket_select_adapter_if(drv_socket_t* pSocket)
             {
                 ESP_LOGW(TAG, "Socket %s switch to INTERFACE BACKUP -> DEFAULT", pSocket->cName);
                 pSocket->pRuntime->adapter_if = pSocket->adapter_interface[DRV_SOCKET_ADAPTER_INTERFACE_DEFAULT];
+                bSelectedValidInterface = true;
                 //pSocket->bDisconnectRequest = true;
             }  
         }
     }
-
+    else
+    {
+        /* should not enter here */
+        ESP_LOGE(TAG, "Socket %s unexpected interface", pSocket->cName);
+    }
+    return bSelectedValidInterface;
 }
 
 
@@ -1643,17 +1654,32 @@ static void socket_task(void* parameters)
   
     while(pSocket->bActiveTask)
     {
+        bool bSelectedValidInterface = socket_select_adapter_if(pSocket);
+        
 
-        socket_select_adapter_if(pSocket);
 
-        /* socket disconnect */
-        //if ((pSocket->nSocketIndexPrimer >= 0) || (pSocket->nSocketIndexServer >= 0))
-        if ((pSocket->nSocketConnectionsCount > 0) || (pSocket->nSocketIndexServer >= 0))
+        /* socket disconnect request execute */
+        if (pSocket->bDisconnectRequest)
         {
-            if (pSocket->bDisconnectRequest)
+            if (pSocket->bConnected)        /* added to disconnect sockets only if connected */
             {
-                pSocket->bDisconnectRequest = false;
-                socket_disconnect(pSocket);
+                //if ((pSocket->nSocketIndexPrimer >= 0) || (pSocket->nSocketIndexServer >= 0))
+                if ((pSocket->nSocketConnectionsCount > 0) || (pSocket->nSocketIndexServer >= 0))
+                {
+                    pSocket->bDisconnectRequest = false;
+                    socket_disconnect(pSocket);
+                }
+                else
+                {
+                    ESP_LOGW(TAG, "socket %s: Skip Disconnect Request - Connected but no connections", pSocket->cName);
+                    pSocket->bDisconnectRequest = false;    /* socket not connected - skip disconnect */
+
+                }
+            }
+            else
+            {
+                ESP_LOGW(TAG, "socket %s: Skip Disconnect Request - Not Connected", pSocket->cName);
+                pSocket->bDisconnectRequest = false;    /* socket not connected - skip disconnect */
             }
         }
 
@@ -1673,6 +1699,8 @@ static void socket_task(void* parameters)
                 pSocket->bConnectDeny = pSocket->bConnectDenyAP;
             }
         }
+
+        
 
         if (pSocket->bConnectDeny)
         {
@@ -1701,6 +1729,7 @@ static void socket_task(void* parameters)
             //ESP_LOGI(TAG, "socket %s %d: Loop Connected", pSocket->cName, nSocketClient);
         }
         else
+        if (bSelectedValidInterface)
         {
             /* start connection from beginning */
             //socket_disconnect(pSocket);
@@ -1767,6 +1796,10 @@ static void socket_task(void* parameters)
                     vTaskDelay(nReconnectTimeTicks); 
                 }
             }
+        }
+        else
+        {
+            /* not connected or connecting */
         }
         pSocket->nTaskLoopCounter++;
         vTaskDelay(nTaskRestTimeTicks);
