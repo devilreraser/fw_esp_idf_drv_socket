@@ -2,6 +2,7 @@ menu "Component drv_socket Configuration"
 
     choice SOCKET_DEFAULT_IF
         prompt "Select Default Interface"
+        default ESP_IF_ETH if DRV_ETH_USE
         default ESP_IF_WIFI_STA
         help
             Select form available or implement a new one.
@@ -18,6 +19,7 @@ menu "Component drv_socket Configuration"
 
     choice SOCKET_BACKUP_IF
         prompt "Select BACKUP Interface"
+        default BKP_IF_WIFI_STA if DRV_ETH_USE
         default BKP_IF_ETH
         help
             Select form available or implement a new one.
