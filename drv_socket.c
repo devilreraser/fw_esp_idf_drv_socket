@@ -183,7 +183,7 @@ void socket_connection_remove_from_list(drv_socket_t* pSocket, int nConnectionIn
 
 bool socket_connection_add_to_list(drv_socket_t* pSocket, int nSocketIndex)
 {
-    if (pSocket->nSocketConnectionsCount < DRV_SOCKET_MAX_CLIENTS)
+    if (pSocket->nSocketConnectionsCount < DRV_SOCKET_SERVER_MAX_CLIENTS)
     {
         pSocket->nSocketIndexPrimer[pSocket->nSocketConnectionsCount] = nSocketIndex;
         socket_set_options(pSocket, pSocket->nSocketConnectionsCount);
@@ -406,7 +406,7 @@ void socket_recv(drv_socket_t* pSocket, int nConnectionIndex)
         strcpy(sockTypeString, "");
     }
 
-    #define MAX_TCP_READ_SIZE CONFIG_SOCKET_MAX_TCP_READ_SIZE
+    #define MAX_TCP_READ_SIZE CONFIG_DRV_SOCKET_MAX_TCP_READ_SIZE
 
     int nLength = MAX_TCP_READ_SIZE;
     int nLengthPushSize = 0;
@@ -1387,9 +1387,9 @@ void socket_set_options(drv_socket_t* pSocket, int nConnectionIndex)
     {
         // Set tcp keepalive option
         int keepAlive = 1;
-        int keepIdle = CONFIG_SOCKET_DEFAULT_KEEPALIVE_IDLE;
-        int keepInterval = CONFIG_SOCKET_DEFAULT_KEEPALIVE_INTERVAL;
-        int keepCount = CONFIG_SOCKET_DEFAULT_KEEPALIVE_COUNT;
+        int keepIdle = CONFIG_DRV_SOCKET_DEFAULT_KEEPALIVE_IDLE;
+        int keepInterval = CONFIG_DRV_SOCKET_DEFAULT_KEEPALIVE_INTERVAL;
+        int keepCount = CONFIG_DRV_SOCKET_DEFAULT_KEEPALIVE_COUNT;
         
         if(setsockopt(pSocket->nSocketIndexPrimer[nConnectionIndex], SOL_SOCKET, SO_KEEPALIVE, &keepAlive, sizeof(int)) < 0)
         {
@@ -1505,7 +1505,7 @@ void socket_force_disconnect(drv_socket_t* pSocket)
         close(pSocket->nSocketIndexServer);
         pSocket->nSocketIndexServer = -1;
     }
-    for (int nIndex = 0; nIndex < DRV_SOCKET_MAX_CLIENTS; nIndex++)
+    for (int nIndex = 0; nIndex < DRV_SOCKET_SERVER_MAX_CLIENTS; nIndex++)
     {
         if (pSocket->nSocketIndexPrimer[nIndex] >= 0)
         {

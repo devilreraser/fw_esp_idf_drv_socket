@@ -39,7 +39,7 @@ extern "C"
  **************************************************************************** */
 #define DRV_SOCKET_DEFAULT_URL  "www.ivetell.com"
 #define DRV_SOCKET_DEFAULT_IP   "84.40.115.3"
-#define DRV_SOCKET_MAX_CLIENTS  CONFIG_SOCKET_SERVER_MAX_CLIENTS
+#define DRV_SOCKET_SERVER_MAX_CLIENTS  CONFIG_DRV_SOCKET_SERVER_MAX_CLIENTS
 
 /* *****************************************************************************
  * Constants and Macros Definitions
@@ -173,7 +173,7 @@ typedef struct
 typedef struct
 {
 
-    int nSocketIndexPrimer[DRV_SOCKET_MAX_CLIENTS];
+    int nSocketIndexPrimer[DRV_SOCKET_SERVER_MAX_CLIENTS];
     int nSocketIndexServer;
     int nSocketConnectionsCount;
     bool bServerType;
@@ -227,9 +227,9 @@ typedef struct
     drv_socket_on_recvfrom_t onReceiveFrom;
     drv_socket_on_sendto_t onSendTo;
     drv_socket_runtime_t* pRuntime;
-    struct sockaddr_storage nSocketIndexPrimerIP[DRV_SOCKET_MAX_CLIENTS];
-    StreamBufferHandle_t * pSendStreamBuffer[DRV_SOCKET_MAX_CLIENTS];
-    StreamBufferHandle_t * pRecvStreamBuffer[DRV_SOCKET_MAX_CLIENTS];
+    struct sockaddr_storage nSocketIndexPrimerIP[DRV_SOCKET_SERVER_MAX_CLIENTS];
+    StreamBufferHandle_t * pSendStreamBuffer[DRV_SOCKET_SERVER_MAX_CLIENTS];
+    StreamBufferHandle_t * pRecvStreamBuffer[DRV_SOCKET_SERVER_MAX_CLIENTS];
 
     //size_t nSetupSocketTxBufferSize;  //not implemented in esp-idf
 
