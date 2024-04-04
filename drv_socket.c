@@ -949,7 +949,7 @@ char* socket_get_host_ip_address(drv_socket_t* pSocket)
 
     /* Try Resolve URL */
     bURLResolved = false;
-    if ((pSocket->cURL != NULL) && (strlen(pSocket->cURL) > 0))
+    if (strlen(pSocket->cURL) > 0)
     {
         ESP_LOGI(TAG, "Socket %s Start resolve URL %s", pSocket->cName, pSocket->cURL);
 
