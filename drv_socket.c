@@ -12,6 +12,7 @@
  * Header Includes
  **************************************************************************** */
 #include "drv_socket.h"
+#include "cmd_socket.h"
 
 #include <sdkconfig.h>
 #include <stdint.h>
@@ -61,11 +62,6 @@
  * Configuration Definitions
  **************************************************************************** */
 #define TAG "drv_socket"
-
-#define DEF_PORT                        CONFIG_SOCKET_DEFAULT_PORT
-#define DEF_KEEPALIVE_IDLE              CONFIG_SOCKET_DEFAULT_KEEPALIVE_IDLE
-#define DEF_KEEPALIVE_INTERVAL          CONFIG_SOCKET_DEFAULT_KEEPALIVE_INTERVAL
-#define DEF_KEEPALIVE_COUNT             CONFIG_SOCKET_DEFAULT_KEEPALIVE_COUNT
 
 #define DRV_SOCKET_TASK_REST_TIME_MS    10
 #define DRV_SOCKET_PING_SEND_TIME_MS    10000
@@ -282,6 +278,57 @@ void drv_socket_disconnect(drv_socket_t* pSocket)
 {
     pSocket->bDisconnectRequest = true;
 }
+
+void drv_socket_url_set(drv_socket_t* pSocket, const char* url)
+{
+    if (url == NULL)
+    {
+        memset(pSocket->cURL, 0, sizeof(pSocket->cURL));
+        ESP_LOGI(TAG, "Socket %s set empty URL '%s' Success", pSocket->cName, pSocket->cURL);
+    }
+    else
+    if (strlen(url) < sizeof(pSocket->cURL))
+    {
+        strcpy(pSocket->cURL, url);
+        ESP_LOGI(TAG, "Socket %s set URL '%s' Success", pSocket->cName, pSocket->cURL);
+        pSocket->bDisconnectRequest = true;     /* reset socket in order changes to take effect */
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Socket %s set URL '%s' Failure (new string size must fit %d bytes)", pSocket->cName, url, sizeof(pSocket->cURL));
+    }
+}
+
+void drv_socket_ip_address_set(drv_socket_t* pSocket, const char* ip_address)
+{
+    if (ip_address == NULL)
+    {
+        memset(pSocket->cHostIP, 0, sizeof(pSocket->cHostIP));
+        ESP_LOGI(TAG, "Socket %s set empty IP address '%s' Success", pSocket->cName, pSocket->cHostIP);
+    }
+    else
+    if (strlen(ip_address) < sizeof(pSocket->cHostIP))
+    {
+        strcpy(pSocket->cHostIP, ip_address);
+        ESP_LOGI(TAG, "Socket %s set IP address %s Success", pSocket->cName, pSocket->cHostIP);
+        pSocket->bDisconnectRequest = true;     /* reset socket in order changes to take effect */
+    }
+    else
+    {
+        ESP_LOGE(TAG, "Socket %s set IP address %s Failure (new string size must fit %d bytes)", pSocket->cName, ip_address, sizeof(pSocket->cHostIP));
+    }
+}
+
+void drv_socket_stop(drv_socket_t* pSocket)
+{
+    pSocket->bConnectDeny = true;
+}
+
+void drv_socket_start(drv_socket_t* pSocket)
+{
+    pSocket->bConnectDeny = false;
+}
+
 
 void socket_if_get_mac(drv_socket_t* pSocket, uint8_t mac_addr[6])
 {
@@ -1686,17 +1733,29 @@ static void socket_task(void* parameters)
         /* socket is must be disconnected */
         if (pSocket->pRuntime != NULL)
         {
-            if (pSocket->pRuntime->adapter_if == ESP_IF_ETH)//to do fix for more than one eth interface
+            if (pSocket->bConnectDeny == false)
             {
-                pSocket->bConnectDeny = pSocket->bConnectDenyETH;
-            }
-            else if (pSocket->pRuntime->adapter_if == ESP_IF_WIFI_STA)
-            {
-                pSocket->bConnectDeny = pSocket->bConnectDenySTA;
-            }
-            else if (pSocket->pRuntime->adapter_if == ESP_IF_WIFI_AP)
-            {
-                pSocket->bConnectDeny = pSocket->bConnectDenyAP;
+                if (pSocket->pRuntime->adapter_if == ESP_IF_ETH)//to do fix for more than one eth interface
+                {
+                    if (pSocket->bConnectDenyETH)
+                    {
+                        pSocket->bConnectDeny = true;
+                    }
+                }
+                else if (pSocket->pRuntime->adapter_if == ESP_IF_WIFI_STA)
+                {
+                     if (pSocket->bConnectDenySTA)
+                    {
+                        pSocket->bConnectDeny = true;
+                    }
+                }
+                else if (pSocket->pRuntime->adapter_if == ESP_IF_WIFI_AP)
+                {
+                    if (pSocket->bConnectDenyAP)
+                    {
+                        pSocket->bConnectDeny = true;
+                    }
+                }
             }
         }
 
@@ -1839,5 +1898,5 @@ esp_err_t drv_socket_task(drv_socket_t* pSocket, int priority)
 
 void drv_socket_init(void)
 {
-
+    cmd_socket_register();
 }

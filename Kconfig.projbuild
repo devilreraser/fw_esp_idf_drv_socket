@@ -4,6 +4,20 @@ menu "Component drv_socket Configuration"
         bool "Use drv_socket component"
         default y
 
+    config DRV_SOCKET_DEFAULT_URL
+        string "Default URL"
+        depends on DRV_SOCKET_USE
+        default "www.ivetell.com"
+        help
+            URL configured by default.
+
+    config DRV_SOCKET_DEFAULT_IP
+        string "Default IP address"
+        depends on DRV_SOCKET_USE
+        default "84.40.115.3"
+        help
+            IP address configured by default.
+
     choice DRV_SOCKET_DEFAULT_IF
         prompt "Select Default Interface"
         default ESP_IF_ETH if DRV_ETH_USE

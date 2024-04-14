@@ -52,8 +52,10 @@
  **************************************************************************** */
 
 static struct {
-    struct arg_str *socket;
+    struct arg_str *name;
     struct arg_str *command;
+    struct arg_str *url;
+    struct arg_str *ip_address;
     struct arg_end *end;
 } socket_args;
 
@@ -88,8 +90,30 @@ static int update_socket(int argc, char **argv)
         return ESP_FAIL;
     }
 
-    const char* socket_name = socket_args.socket->sval[0];
-    const char* socket_command = socket_args.command->sval[0];
+    const char* socket_name = NULL;
+    socket_name = socket_args.name->sval[0];
+    if (socket_args.name->count)
+    {
+        ESP_LOGD(TAG, "name[0]%s count:%d", socket_args.name->sval[0], socket_args.name->count);
+    }
+    const char* socket_command = NULL;
+    socket_command = socket_args.command->sval[0];
+    if (socket_args.command->count)
+    {
+        ESP_LOGD(TAG, "command[0]%s count:%d", socket_args.command->sval[0], socket_args.command->count);
+    }
+    const char* socket_url = NULL;
+    socket_url = socket_args.url->sval[0];
+    if (socket_args.url->count)
+    {
+        ESP_LOGD(TAG, "url[0]%s count:%d", socket_args.url->sval[0], socket_args.url->count);
+    }
+    const char* socket_ip_address = NULL;
+    if (socket_args.ip_address->count)
+    socket_ip_address = socket_args.ip_address->sval[0];
+    {
+        ESP_LOGD(TAG, "ip_address[0]%s count:%d", socket_args.ip_address->sval[0], socket_args.ip_address->count);
+    }
     if (strcmp(socket_command,"list") == 0)
     {
         drv_socket_list();
@@ -109,9 +133,28 @@ static int update_socket(int argc, char **argv)
         drv_socket_t* pSocket = drv_socket_get_handle(socket_name);
         if (pSocket != NULL)
         {
-            if (strcmp(socket_command,"stop") == 0)
+            if (socket_args.url->count)
+            {
+                drv_socket_url_set(pSocket, socket_url);
+            }
+            if (socket_args.ip_address->count)
+            {
+                drv_socket_ip_address_set(pSocket, socket_ip_address);
+            }
+
+            if (strcmp(socket_command,"reset") == 0)
             {
                 drv_socket_disconnect(pSocket);
+            }
+            else
+            if (strcmp(socket_command,"stop") == 0)
+            {
+                drv_socket_stop(pSocket);
+            }
+            else
+            if (strcmp(socket_command,"start") == 0)
+            {
+                drv_socket_start(pSocket);
             }
         }
     }
@@ -120,9 +163,11 @@ static int update_socket(int argc, char **argv)
 
 static void register_socket(void)
 {
-    socket_args.socket = arg_strn("s", "socket", "<socket>", 0, 1, "Command can be : socket [-s socket_name]");
-    socket_args.command = arg_strn(NULL, NULL, "<command>", 0, 1, "Command can be : socket {start|stop|list}");
-    socket_args.end = arg_end(4);
+    socket_args.ip_address = arg_strn("a", "ip", "<ip address>", 0, 1, "Command can be : socket -n socket_name -a 192.168.0.5");
+    socket_args.url = arg_strn("u", "url", "<URL>", 0, 1, "Command can be : socket -n socket_name -u url_name");
+    socket_args.name = arg_strn("n", "name", "<name>", 0, 1, "Command can be : socket [-n socket_name]");
+    socket_args.command = arg_strn(NULL, NULL, "<command>", 0, 1, "Command can be : socket {reset|start|stop|list}");
+    socket_args.end = arg_end(5);
 
     const esp_console_cmd_t cmd_socket = {
         .command = "socket",

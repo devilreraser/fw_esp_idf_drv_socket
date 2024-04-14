@@ -37,8 +37,10 @@ extern "C"
 /* *****************************************************************************
  * Configuration Definitions
  **************************************************************************** */
-#define DRV_SOCKET_DEFAULT_URL  "www.ivetell.com"
-#define DRV_SOCKET_DEFAULT_IP   "84.40.115.3"
+#define DRV_SOCKET_DEFAULT_URL  CONFIG_DRV_SOCKET_DEFAULT_URL
+#define DRV_SOCKET_DEFAULT_IP   CONFIG_DRV_SOCKET_DEFAULT_IP
+//#define DRV_SOCKET_DEFAULT_URL  "www.ivetell.com"
+//#define DRV_SOCKET_DEFAULT_IP   "84.40.115.3"
 #define DRV_SOCKET_SERVER_MAX_CLIENTS  CONFIG_DRV_SOCKET_SERVER_MAX_CLIENTS
 
 /* *****************************************************************************
@@ -250,6 +252,10 @@ void drv_socket_list(void);
 int drv_socket_get_position(const char* name);
 drv_socket_t* drv_socket_get_handle(const char* name);
 void drv_socket_disconnect(drv_socket_t* pSocket);
+void drv_socket_url_set(drv_socket_t* pSocket, const char* url);
+void drv_socket_ip_address_set(drv_socket_t* pSocket, const char* ip_address);
+void drv_socket_stop(drv_socket_t* pSocket);
+void drv_socket_start(drv_socket_t* pSocket);
 esp_err_t drv_socket_task(drv_socket_t* pSocket, int priority);
 void drv_socket_init(void);
 
