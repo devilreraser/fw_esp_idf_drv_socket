@@ -1942,5 +1942,10 @@ esp_err_t drv_socket_task(drv_socket_t* pSocket, int priority)
 
 void drv_socket_init(void)
 {
+    
+    if (esp_log_level_get(TAG) == CONFIG_LOG_DEFAULT_LEVEL)
+    {
+        esp_log_level_set(TAG, ESP_LOG_INFO);
+    }
     cmd_socket_register();
 }
