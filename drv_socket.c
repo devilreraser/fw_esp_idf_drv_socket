@@ -34,6 +34,9 @@
 #include "lwip/inet.h"
 #include "lwip/netdb.h"
 //#include "lwip/dns.h"
+/*
+#include "netdb.h"      // getnameinfo()
+*/
 
 #include "esp_netif.h"
 #include "esp_interface.h"
@@ -438,7 +441,6 @@ bool socket_identification_answer(drv_socket_t* pSocket, int nConnectionIndex, c
 
 
 
-
 void socket_recv(drv_socket_t* pSocket, int nConnectionIndex)
 {
     int err;
@@ -554,8 +556,6 @@ void socket_recv(drv_socket_t* pSocket, int nConnectionIndex)
                     nLength = recv(nSocketClient, au8Temp, nLengthPeek, MSG_DONTWAIT);
                 }
             
-                
-
                 if (nLength > 0)
                 {
                     if (nLength == nLengthPeek)
@@ -670,10 +670,16 @@ void socket_recv(drv_socket_t* pSocket, int nConnectionIndex)
             if (err != EAGAIN)
             {
                 ESP_LOGE(TAG, "Error during read peek from %s socket %s[%d] %d: errno %d (%s)", sockTypeString, pSocket->cName, nConnectionIndex, nSocketClient, err, strerror(err));
+                
+                char disconnected_IP [ 16 ] ;
+                inet_ntoa_r ( ( ( struct sockaddr_in * ) ( pSocket -> nSocketIndexPrimerIP + nConnectionIndex ) ) -> sin_addr . s_addr, disconnected_IP, sizeof ( disconnected_IP ) - 1 ) ;                
+                ESP_LOGW (TAG, "Lost connection to IP %s", disconnected_IP ) ;    // socket_recv: Lost connection to IP 192.168.0.4
+
+                app_power_limit_update_arrays_and_counters_on_disconnect ( ( ( struct sockaddr_in * ) ( pSocket -> nSocketIndexPrimerIP + nConnectionIndex ) ) -> sin_addr . s_addr ) ;
+
                 //socket_disconnect(pSocket);
                 socket_disconnect_connection(pSocket, nConnectionIndex);   /* Removing Socket Client Connection */
             }
-
         }
     }
     else
@@ -1235,7 +1241,7 @@ void socket_connect_server(drv_socket_t* pSocket)
         const ip4_addr_t* pInterfaceAddress = (const ip4_addr_t*)&interfaceAddress;
         char cAdapterInterfaceIP[16];
         char *adapter_interface_ip = ip4addr_ntoa_r(pInterfaceAddress, cAdapterInterfaceIP, sizeof(cAdapterInterfaceIP));
-        ESP_LOGW(TAG, "Socket %s %d adapterif addr:%s port:%d family:%d", pSocket->cName, pSocket->nSocketIndexServer, adapter_interface_ip, ntohs(test_addr_ip4->sin_port), test_addr_ip4->sin_family);
+        ESP_LOGW(TAG, "Socket %s %d adapterif addr:%s port:%d family:%d", pSocket->cName, pSocket->nSocketIndexServer, adapter_interface_ip, htons(test_addr_ip4->sin_port), test_addr_ip4->sin_family);
         
         socket_disconnect(pSocket);
         //close(pSocket->nSocketIndexServer);
@@ -1496,14 +1502,12 @@ void socket_set_options(drv_socket_t* pSocket, int nConnectionIndex)
 
 void socket_on_connect(drv_socket_t* pSocket, int nConnectionIndex)
 {
-
     if (pSocket->bResetSendStreamOnConnect)
     {
         drv_stream_zero(pSocket->pSendStreamBuffer[nConnectionIndex]);
     }
 
     //drv_stream_zero(pSocket->pRecvStreamBuffer[nConnectionIndex]);
-    
 
     if (pSocket->onConnect != NULL)
     {
@@ -1625,13 +1629,13 @@ bool socket_check_interface_connected(esp_interface_t interface)
 
 bool socket_select_adapter_if(drv_socket_t* pSocket)
 {
-    bool bSelectedValidInterface = false;
+	bool bSelectedValidInterface = false;
 
-    #if CONFIG_DRV_ETH_USE
+	#if CONFIG_DRV_ETH_USE
     if (pSocket->pRuntime->adapter_if >= (ESP_IF_ETH + drv_eth_get_netif_count()))  //not selected valid if
-    #else
+	#else
     if (pSocket->pRuntime->adapter_if >= ESP_IF_ETH)  //not selected valid if
-    #endif
+	#endif
     {
         ESP_LOGE(TAG, "Socket %s not selected valid if", pSocket->cName);
         pSocket->pRuntime->adapter_if = pSocket->adapter_interface[DRV_SOCKET_ADAPTER_INTERFACE_DEFAULT];
@@ -1648,6 +1652,8 @@ bool socket_select_adapter_if(drv_socket_t* pSocket)
                 {
                     ESP_LOGW(TAG, "Socket %s switch to INTERFACE DEFAULT -> BACKUP", pSocket->cName);
                     pSocket->pRuntime->adapter_if = pSocket->adapter_interface[DRV_SOCKET_ADAPTER_INTERFACE_BACKUP];
+
+                    ESP_LOGI (TAG, "setting pSocket -> bDisconnectRequest = true" ) ;
                     pSocket->bDisconnectRequest = true;
                 } 
             }
@@ -1760,7 +1766,7 @@ static void socket_task(void* parameters)
             }
         }
 
-        /* socket is must be disconnected */
+        /* socket must be disconnected */
         if (pSocket->pRuntime != NULL)
         {
             if (pSocket->bConnectDeny == false)
@@ -1789,8 +1795,6 @@ static void socket_task(void* parameters)
             }
         }
 
-        
-
         if (pSocket->bConnectDeny)
         {
             pSocket->bDisconnectRequest = true;
@@ -1812,8 +1816,6 @@ static void socket_task(void* parameters)
             {
                 socket_connect_server_periodic(pSocket);
             }
-            
-            
 
             //ESP_LOGI(TAG, "socket %s %d: Loop Connected", pSocket->cName, nSocketClient);
         }
@@ -1890,7 +1892,19 @@ static void socket_task(void* parameters)
         {
             /* not connected or connecting */
         }
+
         pSocket->nTaskLoopCounter++;
+
+        size_t stack = uxTaskGetStackHighWaterMark(NULL);
+        if ((stack < DBG_TASK_STACK_WARN_MIN) || (stack > DBG_TASK_STACK_WARN_HIGH))
+        {
+            ESP_LOGW(TAG, "Task %s stack:%d", pcTaskGetName(NULL), stack);    
+        } 
+        else
+        {
+            ESP_LOGD(TAG, "Task %s stack:%d", pcTaskGetName(NULL), stack);    
+        }    
+
         vTaskDelay(nTaskRestTimeTicks);
     }
     socket_force_disconnect(pSocket);
@@ -1920,7 +1934,7 @@ esp_err_t drv_socket_task(drv_socket_t* pSocket, int priority)
     {
         priority = 5;       /* use default priority */
     }
-    xTaskCreate(socket_task, pTaskName, 4096, (void*)pSocket, priority, &pSocket->pTask);
+    xTaskCreate(socket_task, pTaskName, 2048 + 256, (void*)pSocket, priority, &pSocket->pTask);
     free(pTaskName);
     if (pSocket->pTask == NULL) return ESP_FAIL;
     return ESP_OK;
