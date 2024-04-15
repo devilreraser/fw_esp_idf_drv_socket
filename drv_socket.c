@@ -159,20 +159,22 @@ drv_socket_t* drv_socket_get_handle(const char* name)
 
 void socket_connection_remove_from_list(drv_socket_t* pSocket, int nConnectionIndex)
 {
-    for (int nIndex = nConnectionIndex + 1 ; nIndex < pSocket->nSocketConnectionsCount; nIndex++)
+    for (int nIndex = nConnectionIndex + 1 ; nIndex < pSocket->nSocketConnectionsCount ; nIndex++)
     {
         pSocket->nSocketIndexPrimer[nIndex - 1] = pSocket->nSocketIndexPrimer[nIndex];
     }
+
     pSocket->nSocketConnectionsCount--;
-    if (pSocket->nSocketConnectionsCount == 0)
+
+    if (pSocket->nSocketConnectionsCount==0)
     {
-        if (pSocket->bServerType)
+        if(pSocket->bServerType)
         {
             /* closed server socket and 0 client connections available - do nothing (periodic client connect will be used) */
-        }
-        else
+        } 
+        else 
         {
-            pSocket->bConnected = false;    /* disconnect the client socket */
+            pSocket->bConnected = false ;    /* disconnect the client socket */
         }
     }
 }
@@ -531,15 +533,15 @@ void socket_recv(drv_socket_t* pSocket, int nConnectionIndex)
                     #define IP2STR_4(u32addr) ((uint8_t*)(&u32addr))[0],((uint8_t*)(&u32addr))[1],((uint8_t*)(&u32addr))[2],((uint8_t*)(&u32addr))[3]
                     struct sockaddr_in *host_addr_recv_ip4 = (struct sockaddr_in *)&pSocket->pRuntime->host_addr_recv;
                     char* adapter_interface_address = inet_ntoa(host_addr_recv_ip4->sin_addr.s_addr);
-                    ESP_LOGW(TAG, "Recv %s socket %s[%d] %d (host_addr_recv %s:%d)", sockTypeString, pSocket->cName, nConnectionIndex, nSocketClient, adapter_interface_address, htons(host_addr_recv_ip4->sin_port));
-                    //ESP_LOGW(TAG, "host_addr_recv " IPSTR ":%d", IP2STR_4(host_addr_recv_ip4->sin_addr.s_addr), htons(host_addr_recv_ip4->sin_port));
-                    //ESP_LOGW(TAG, "host_addr_recv 0x%08X:%d", (int)(host_addr_recv_ip4->sin_addr.s_addr), htons(host_addr_recv_ip4->sin_port));
+                    ESP_LOGW(TAG, "Recv %s socket %s[%d] %d (host_addr_recv %s:%d)", sockTypeString, pSocket->cName, nConnectionIndex, nSocketClient, adapter_interface_address, ntohs(host_addr_recv_ip4->sin_port));
+                    //ESP_LOGW(TAG, "host_addr_recv " IPSTR ":%d", IP2STR_4(host_addr_recv_ip4->sin_addr.s_addr), ntohs(host_addr_recv_ip4->sin_port));
+                    //ESP_LOGW(TAG, "host_addr_recv 0x%08X:%d", (int)(host_addr_recv_ip4->sin_addr.s_addr), ntohs(host_addr_recv_ip4->sin_port));
 
                     uint32_t u32RecvFromIP;
                     uint16_t u16RecvFromPort;
 
                     u32RecvFromIP = host_addr_recv_ip4->sin_addr.s_addr;
-                    u16RecvFromPort = htons(host_addr_recv_ip4->sin_port);
+                    u16RecvFromPort = ntohs(host_addr_recv_ip4->sin_port);
 
                     if (pSocket->onReceiveFrom != NULL)
                     {
@@ -781,8 +783,8 @@ void socket_send(drv_socket_t* pSocket, int nConnectionIndex)
                             struct sockaddr_in *host_addr_send_ip4 = (struct sockaddr_in *)&pSocket->pRuntime->host_addr_send;
                             host_addr_send_ip4->sin_port = htons(u16SendToPort);
                             host_addr_send_ip4->sin_addr.s_addr = htonl(u32SendToIP);
-                            ESP_LOGW(TAG, "host_addr_send " IPSTR ":%d", IP2STR_4(host_addr_send_ip4->sin_addr.s_addr), htons(host_addr_send_ip4->sin_port));
-                            ESP_LOGW(TAG, "host_addr_send 0x%08X:%d", (int)(host_addr_send_ip4->sin_addr.s_addr), htons(host_addr_send_ip4->sin_port));
+                            ESP_LOGW(TAG, "host_addr_send " IPSTR ":%d", IP2STR_4(host_addr_send_ip4->sin_addr.s_addr), ntohs(host_addr_send_ip4->sin_port));
+                            ESP_LOGW(TAG, "host_addr_send 0x%08X:%d", (int)(host_addr_send_ip4->sin_addr.s_addr), ntohs(host_addr_send_ip4->sin_port));
                         }
 
                         socklen_t socklen = sizeof(pSocket->pRuntime->host_addr_send);
@@ -984,8 +986,6 @@ void clear_dns_cache()
     esp_netif_set_dns_info(netif, ESP_NETIF_DNS_MAIN, &dns_info);
     esp_netif_set_dns_info(netif, ESP_NETIF_DNS_BACKUP, &dns_info);
 }
-
-uint32_t drv_socket_caller_id;
 
 /* try resolve cURL to IP Address. If not resolved - use cHostIP */
 char* socket_get_host_ip_address(drv_socket_t* pSocket)
@@ -1235,7 +1235,7 @@ void socket_connect_server(drv_socket_t* pSocket)
         const ip4_addr_t* pInterfaceAddress = (const ip4_addr_t*)&interfaceAddress;
         char cAdapterInterfaceIP[16];
         char *adapter_interface_ip = ip4addr_ntoa_r(pInterfaceAddress, cAdapterInterfaceIP, sizeof(cAdapterInterfaceIP));
-        ESP_LOGW(TAG, "Socket %s %d adapterif addr:%s port:%d family:%d", pSocket->cName, pSocket->nSocketIndexServer, adapter_interface_ip, htons(test_addr_ip4->sin_port), test_addr_ip4->sin_family);
+        ESP_LOGW(TAG, "Socket %s %d adapterif addr:%s port:%d family:%d", pSocket->cName, pSocket->nSocketIndexServer, adapter_interface_ip, ntohs(test_addr_ip4->sin_port), test_addr_ip4->sin_family);
         
         socket_disconnect(pSocket);
         //close(pSocket->nSocketIndexServer);
@@ -1332,16 +1332,40 @@ void socket_connect_server(drv_socket_t* pSocket)
 
 void socket_connect_client(drv_socket_t* pSocket)
 {
-    int err;
-    int nConnectionIndex  = 0;
-    
     if (pSocket->nSocketConnectionsCount != 1)
     {
         ESP_LOGE(TAG, "Socket %s unexpected client type with %d connections ", pSocket->cName, pSocket->nSocketConnectionsCount);
     }
     else
     {
-        /* client bind should be not neccesairy because an auto bind will take place at first send/recv/sendto/recvfrom using a system assigned local port */
+
+        int nConnectionIndex = 0 ;
+        
+        int err = 0 ;
+
+        int opt = 1 ;
+        socklen_t optlen = sizeof ( opt ) ;
+
+        // getsockopt()
+        int ret_so;
+        ret_so = getsockopt ( pSocket->nSocketIndexPrimer[nConnectionIndex] , SOL_SOCKET, SO_REUSEADDR, ( void * ) & opt, & optlen ) ;
+        if ( ret_so < 0 ) {
+            err = errno ;
+            ESP_LOGE (TAG, LOG_COLOR ( LOG_COLOR_CYAN ) "Socket %s %d getsockopt  SO_REUSEADDR=%d retv = %d. errno %d (%s)", pSocket -> cName, pSocket->nSocketIndexPrimer[nConnectionIndex], opt, ret_so, err, strerror ( errno ) ) ;
+        }
+
+        // setsockopt()
+        opt = 1;
+        ret_so = setsockopt ( pSocket->nSocketIndexPrimer[nConnectionIndex] , SOL_SOCKET, SO_REUSEADDR, ( void * ) & opt, sizeof ( opt ) ) ;
+        if ( ret_so < 0 ) {
+            err = errno ;
+            ESP_LOGE (TAG, LOG_COLOR ( LOG_COLOR_CYAN ) "Socket %s %d setsockopt  SO_REUSEADDR=%d retv = %d. errno %d (%s)", pSocket -> cName, pSocket->nSocketIndexPrimer[nConnectionIndex], opt, ret_so, err, strerror ( errno ) ) ;
+        }
+
+
+
+        // bind
+        /* client bind is not necessary because an auto bind will take place at first send/recv/sendto/recvfrom using a system assigned local port */
         int eError = bind(pSocket->nSocketIndexPrimer[nConnectionIndex], (struct sockaddr *)&pSocket->pRuntime->adapterif_addr, sizeof(pSocket->pRuntime->adapterif_addr));
         if (eError != 0) 
         {
@@ -1358,6 +1382,17 @@ void socket_connect_client(drv_socket_t* pSocket)
             /* Connect to the host by the network interface */
             if (pSocket->pRuntime->bBroadcastRxTx == false)
             {
+
+                char IP_target [ 16 ] ;
+                /*
+                char PORT_target [ 10 ] ;
+                getnameinfo ( ( struct sockaddr * ) & pSocket -> pRuntime -> host_addr_main, sizeof ( pSocket -> pRuntime -> host_addr_main ), IP_target, sizeof ( IP_target ), PORT_target, sizeof ( PORT_target ), NI_NUMERICHOST | NI_NUMERICSERV ) ;
+                */
+                inet_ntoa_r ( ( ( struct sockaddr_in * ) & pSocket -> pRuntime -> host_addr_main ) -> sin_addr . s_addr, IP_target, sizeof ( IP_target ) - 1 ) ;
+                ESP_LOGI (TAG, "trying connect() to REMOTE IP:PORT = %s:%u", IP_target, ntohs(( ( struct sockaddr_in * ) & pSocket -> pRuntime -> host_addr_main ) -> sin_port )) ; // 192.168.0.3 : 64520 ( network byte order == LS byte 1st )        64520 ( LS Byte 1st ) == 2300 ( MS Byte 1st )
+
+
+
                 int eError = connect(pSocket->nSocketIndexPrimer[nConnectionIndex], (struct sockaddr *)&pSocket->pRuntime->host_addr_main, sizeof(pSocket->pRuntime->host_addr_main));
                 if (eError != 0) 
                 {
@@ -1380,16 +1415,11 @@ void socket_connect_client(drv_socket_t* pSocket)
                         fcntl(socket_fd, F_SETFL, flags | O_NONBLOCK);
                         ESP_LOGI(TAG, "Socket %s %d Set Non-Blocking mode", pSocket->cName, pSocket->nSocketIndexPrimer[nConnectionIndex]);
                     }
-
-
-
-
-
                 }
             }
             else
             {
-                ESP_LOGI(TAG, "Socket %s %d connected only trough bind (broadcast host address detected), port %d", pSocket->cName, pSocket->nSocketIndexPrimer[nConnectionIndex], pSocket->u16Port);
+                ESP_LOGI(TAG, "Socket %s %d connected only through bind (broadcast host address detected), port %d", pSocket->cName, pSocket->nSocketIndexPrimer[nConnectionIndex], pSocket->u16Port);
             }
         }
     }
