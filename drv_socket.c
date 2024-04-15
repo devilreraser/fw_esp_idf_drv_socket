@@ -675,7 +675,7 @@ void socket_recv(drv_socket_t* pSocket, int nConnectionIndex)
                 inet_ntoa_r ( ( ( struct sockaddr_in * ) ( pSocket -> nSocketIndexPrimerIP + nConnectionIndex ) ) -> sin_addr . s_addr, disconnected_IP, sizeof ( disconnected_IP ) - 1 ) ;                
                 ESP_LOGW (TAG, "Lost connection to IP %s", disconnected_IP ) ;    // socket_recv: Lost connection to IP 192.168.0.4
 
-                app_power_limit_update_arrays_and_counters_on_disconnect ( ( ( struct sockaddr_in * ) ( pSocket -> nSocketIndexPrimerIP + nConnectionIndex ) ) -> sin_addr . s_addr ) ;
+                //app_power_limit_update_arrays_and_counters_on_disconnect ( ( ( struct sockaddr_in * ) ( pSocket -> nSocketIndexPrimerIP + nConnectionIndex ) ) -> sin_addr . s_addr ) ;
 
                 //socket_disconnect(pSocket);
                 socket_disconnect_connection(pSocket, nConnectionIndex);   /* Removing Socket Client Connection */
@@ -1892,9 +1892,9 @@ static void socket_task(void* parameters)
         {
             /* not connected or connecting */
         }
-
         pSocket->nTaskLoopCounter++;
-
+        #define DBG_TASK_STACK_WARN_MIN     128
+        #define DBG_TASK_STACK_WARN_HIGH    768
         size_t stack = uxTaskGetStackHighWaterMark(NULL);
         if ((stack < DBG_TASK_STACK_WARN_MIN) || (stack > DBG_TASK_STACK_WARN_HIGH))
         {
