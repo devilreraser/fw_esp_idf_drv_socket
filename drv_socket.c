@@ -1734,6 +1734,9 @@ static void socket_task(void* parameters)
     pSocket->bConnected = false;
 
     socket_add_to_list(pSocket);
+
+    int64_t print_timer = esp_timer_get_time();
+    bool stack_was_ok = true;
   
     while(pSocket->bActiveTask)
     {
@@ -1895,14 +1898,35 @@ static void socket_task(void* parameters)
         pSocket->nTaskLoopCounter++;
         #define DBG_TASK_STACK_WARN_MIN     128
         #define DBG_TASK_STACK_WARN_HIGH    768
+        #define PRINT_TIMEOUT_US            (5000 * 1000)
+        int64_t current_timer = esp_timer_get_time();
         size_t stack = uxTaskGetStackHighWaterMark(NULL);
+
         if ((stack < DBG_TASK_STACK_WARN_MIN) || (stack > DBG_TASK_STACK_WARN_HIGH))
         {
-            ESP_LOGW(TAG, "Task %s stack:%d", pcTaskGetName(NULL), stack);    
+            if (stack_was_ok)
+            {
+                stack_was_ok = false;
+                print_timer = current_timer - PRINT_TIMEOUT_US;
+            }
+            if ((current_timer - print_timer) >= PRINT_TIMEOUT_US)
+            {
+                ESP_LOGW(TAG, "Task %s stack:%d", pcTaskGetName(NULL), stack);    
+                print_timer = current_timer;
+            }
         } 
         else
         {
-            ESP_LOGD(TAG, "Task %s stack:%d", pcTaskGetName(NULL), stack);    
+            if (stack_was_ok == false)
+            {
+                stack_was_ok = true;
+                print_timer = current_timer - PRINT_TIMEOUT_US;
+            }
+            if ((current_timer - print_timer) >= PRINT_TIMEOUT_US)
+            {
+                ESP_LOGD(TAG, "Task %s stack:%d", pcTaskGetName(NULL), stack);    
+                print_timer = current_timer;
+            }
         }    
 
         vTaskDelay(nTaskRestTimeTicks);
@@ -1934,7 +1958,7 @@ esp_err_t drv_socket_task(drv_socket_t* pSocket, int priority)
     {
         priority = 5;       /* use default priority */
     }
-    xTaskCreate(socket_task, pTaskName, 2048 + 256, (void*)pSocket, priority, &pSocket->pTask);
+    xTaskCreate(socket_task, pTaskName, 2048 + 256 + 128, (void*)pSocket, priority, &pSocket->pTask);
     free(pTaskName);
     if (pSocket->pTask == NULL) return ESP_FAIL;
     return ESP_OK;
